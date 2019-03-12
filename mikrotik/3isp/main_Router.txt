@@ -1,0 +1,60 @@
+/interface vlan
+add interface=ether1 name=eth1-vlan10 vlan-id=10
+add interface=ether1 name=eth1-vlan20 vlan-id=20
+add interface=ether1 name=eth1-vlan30 vlan-id=30
+
+/ip address
+add address=192.168.10.1/24 interface=eth1-vlan10 network=192.168.10.0
+add address=192.168.20.1/24 interface=eth1-vlan20 network=192.168.20.0
+add address=192.168.30.1/24 interface=eth1-vlan30 network=192.168.30.0
+add address=13.0.0.2/24 interface=ether2 network=13.0.0.0
+add address=11.0.0.2/24 interface=ether3 network=11.0.0.0
+add address=12.0.0.2/24 interface=ether4 network=12.0.0.0
+
+
+# force the connection that is comming from interface to leave from the incoming int.!!!
+
+/ip firewall mangle
+add action=mark-connection chain=input comment=R3 in-interface=ether2 \
+    new-connection-mark=cIN_R3 passthrough=yes
+add action=mark-routing chain=output connection-mark=cIN_R3 new-routing-mark=\
+    rOUT_R3 passthrough=no
+
+add action=mark-connection chain=input comment=R1 in-interface=ether3 \
+    new-connection-mark=cIN_R1 passthrough=yes
+add action=mark-routing chain=output connection-mark=cIN_R1 new-routing-mark=\
+    rOUT_R1 passthrough=yes
+
+add action=mark-connection chain=input comment=R2 in-interface=ether4 \
+    new-connection-mark=cIN_R2 passthrough=yes
+add action=mark-routing chain=output connection-mark=cIN_R2 new-routing-mark=\
+    rOUT_R2 passthrough=yes
+
+
+# balance the traffic by marking packet it with routing mark
+
+add action=mark-routing chain=prerouting in-interface=eth1-vlan10 \
+    new-routing-mark=rOUT_R1 passthrough=yes per-connection-classifier=\
+    both-addresses:3/0 src-address=192.168.10.0/24
+add action=mark-routing chain=prerouting in-interface=eth1-vlan10 \
+    new-routing-mark=rOUT_R3 passthrough=yes per-connection-classifier=\
+    both-addresses:3/2 src-address=192.168.10.0/24
+add action=mark-routing chain=prerouting in-interface=eth1-vlan10 \
+    new-routing-mark=rOUT_R2 passthrough=yes per-connection-classifier=\
+    both-addresses:3/1 src-address=192.168.10.0/24
+
+/ip firewall nat
+add action=masquerade chain=srcnat src-address=192.168.0.0/16
+
+/ip route
+add check-gateway=ping distance=1 gateway=13.0.0.1 routing-mark=rOUT_R3
+add check-gateway=ping distance=2 gateway=12.0.0.1 routing-mark=rOUT_R3
+add check-gateway=ping distance=3 gateway=11.0.0.1 routing-mark=rOUT_R3
+add check-gateway=ping distance=1 gateway=11.0.0.1 routing-mark=rOUT_R1
+add check-gateway=ping distance=2 gateway=12.0.0.1 routing-mark=rOUT_R1
+add check-gateway=ping distance=3 gateway=13.0.0.1 routing-mark=rOUT_R1
+add check-gateway=ping distance=1 gateway=12.0.0.1 routing-mark=rOUT_R2
+add check-gateway=ping distance=2 gateway=11.0.0.1 routing-mark=rOUT_R2
+add check-gateway=ping distance=3 gateway=13.0.0.1 routing-mark=rOUT_R2
+
+/system identity set name=mk-1
