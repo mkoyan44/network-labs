@@ -1,0 +1,16 @@
+/interface bridge add name=br protocol-mode=mstp region-name=main vlan-filtering=yes
+
+/interface vlan add interface=br name=mgt vlan-id=99
+/ip address add address=192.168.99.11/24 interface=mgt network=192.168.99.0
+
+/interface bridge msti add bridge=br identifier=1 vlan-mapping=10
+/interface bridge msti add bridge=br identifier=2 vlan-mapping=20
+
+/interface bridge port add bridge=br frame-types=admit-only-vlan-tagged ingress-filtering=yes interface=ether1
+/interface bridge port add bridge=br frame-types=admit-only-vlan-tagged ingress-filtering=yes interface=ether2
+
+/interface bridge vlan add bridge=br tagged=ether1,ether2,br vlan-ids=99
+/interface bridge vlan add bridge=br tagged=ether1,ether2 vlan-ids=20
+/interface bridge vlan add bridge=br tagged=ether1,ether2 vlan-ids=10
+
+/system identity set name=mk-1
