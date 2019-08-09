@@ -5,20 +5,25 @@ mpls ldp router-id Loopback0
 !
 ip vrf ca
  rd 1:1
+ ! export l3 vpn subnet 
  route-target export 1:1
+ ! import srv subnet  10.0.0.0/24
  route-target import 100:100
 !
 ip vrf ca-srv
  rd 100:100
  route-target export 100:100
  route-target import 100:100
+ ! import l3vpn-clients routes
  route-target import 1:1
 !
 
 
-l2vpn vfi context ca-srv 
+l2vpn vfi context ca-srv
+ ! must mutch per vfi 
  vpn id 100
  autodiscovery bgp signaling bgp 
+  ! l2vpn site-id, unique per device
   ve id 101
   route-target export 100:100
   route-target import 100:100
@@ -26,15 +31,20 @@ l2vpn vfi context ca-srv
 interface GigabitEthernet2
  no ip address
  negotiation auto
+ ! create service instance for for delivering l2 
  service instance 100 ethernet
   encapsulation dot1q 11
+  ! encapsulation untaged 
+  ! remove vlan label befor sending to vpls
   rewrite ingress tag pop 1 symmetric
 
-
+! bridge together
 bridge-domain 100 
  member GigabitEthernet2 service-instance 100
  member vfi ca-srv
 !
+
+! assign ip to bridge domain interface with maps to bridge-domain 
 interface BDI100
  ip vrf forwarding ca-srv
  ip address 10.0.0.1 255.255.255.0 secondary
@@ -56,6 +66,7 @@ interface GigabitEthernet1
  ip ospf 1 area 0
  negotiation auto
  mpls ip
+! check within 50 ms interval for 50ms latency, if it failds 3 time consider link failed
  bfd interval 50 min_rx 50 multiplier 3
 !
 !
@@ -79,14 +90,17 @@ interface GigabitEthernet4
 !
 router ospf 1
  router-id 42.0.255.1
+ ! enable bfd for ospf, without bfd fail over takes 38s but with bfd just 2 
  bfd all-interfaces
 !
 router bgp 1
  bgp router-id 42.0.255.1
+ ! cluster-id must mutch for RRs connected to clients
  bgp cluster-id 11.11.11.11
  bgp log-neighbor-changes
  neighbor 42.0.255.2 remote-as 1
  neighbor 42.0.255.2 update-source Loopback0
+ ! enable bfd for bgp,
  neighbor 42.0.255.2 fall-over bfd
  neighbor 42.0.255.3 remote-as 1
  neighbor 42.0.255.3 update-source Loopback0
@@ -102,6 +116,7 @@ router bgp 1
   neighbor 42.0.255.2 send-community both
   neighbor 42.0.255.3 activate
   neighbor 42.0.255.3 send-community both
+  ! reflect labels to clients
   neighbor 42.0.255.3 route-reflector-client
   neighbor 42.0.255.4 activate
   neighbor 42.0.255.4 send-community both
@@ -109,8 +124,11 @@ router bgp 1
  exit-address-family
  !
  address-family l2vpn vpls
+  ! full mesh in the backbone
   neighbor 42.0.255.2 activate
+  ! send extended community
   neighbor 42.0.255.2 send-community extended
+  ! don't use ldp for inner label distribution
   neighbor 42.0.255.2 suppress-signaling-protocol ldp
  exit-address-family
  !
@@ -118,6 +136,7 @@ router bgp 1
   redistribute connected
  exit-address-family
  !
+ ! redistribute connected route in vrf ca-srv for getting it from bgp peer
  address-family ipv4 vrf ca-srv
   redistribute connected
  exit-address-family
