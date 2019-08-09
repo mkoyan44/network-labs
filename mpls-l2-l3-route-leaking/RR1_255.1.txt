@@ -1,0 +1,125 @@
+hostname RR1_255.1
+!
+
+mpls ldp router-id Loopback0
+!
+ip vrf ca
+ rd 1:1
+ route-target export 1:1
+ route-target import 100:100
+!
+ip vrf ca-srv
+ rd 100:100
+ route-target export 100:100
+ route-target import 100:100
+ route-target import 1:1
+!
+
+
+l2vpn vfi context ca-srv 
+ vpn id 100
+ autodiscovery bgp signaling bgp 
+  ve id 101
+  route-target export 100:100
+  route-target import 100:100
+!
+interface GigabitEthernet2
+ no ip address
+ negotiation auto
+ service instance 100 ethernet
+  encapsulation dot1q 11
+  rewrite ingress tag pop 1 symmetric
+
+
+bridge-domain 100 
+ member GigabitEthernet2 service-instance 100
+ member vfi ca-srv
+!
+interface BDI100
+ ip vrf forwarding ca-srv
+ ip address 10.0.0.1 255.255.255.0 secondary
+ ip address 192.168.11.1 255.255.255.0
+!
+!
+interface Loopback0
+ ip address 42.0.255.1 255.255.255.255
+ ip ospf 1 area 0
+!         
+!
+interface Loopback88
+ ip vrf forwarding ca
+ ip address 55.0.1.1 255.255.255.0
+!
+interface GigabitEthernet1
+ ip address 42.0.0.1 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+ negotiation auto
+ mpls ip
+ bfd interval 50 min_rx 50 multiplier 3
+!
+!
+!         
+interface GigabitEthernet3
+ ip address 42.0.0.6 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+ negotiation auto
+ mpls ip
+ bfd interval 50 min_rx 50 multiplier 3
+!
+interface GigabitEthernet4
+ ip address 42.0.0.13 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+ negotiation auto
+ mpls ip
+ bfd interval 50 min_rx 50 multiplier 3
+!
+!
+router ospf 1
+ router-id 42.0.255.1
+ bfd all-interfaces
+!
+router bgp 1
+ bgp router-id 42.0.255.1
+ bgp cluster-id 11.11.11.11
+ bgp log-neighbor-changes
+ neighbor 42.0.255.2 remote-as 1
+ neighbor 42.0.255.2 update-source Loopback0
+ neighbor 42.0.255.2 fall-over bfd
+ neighbor 42.0.255.3 remote-as 1
+ neighbor 42.0.255.3 update-source Loopback0
+ neighbor 42.0.255.3 fall-over bfd
+ neighbor 42.0.255.3 route-reflector-client
+ neighbor 42.0.255.4 remote-as 1
+ neighbor 42.0.255.4 update-source Loopback0
+ neighbor 42.0.255.4 fall-over bfd
+ neighbor 42.0.255.4 route-reflector-client
+ !
+ address-family vpnv4
+  neighbor 42.0.255.2 activate
+  neighbor 42.0.255.2 send-community both
+  neighbor 42.0.255.3 activate
+  neighbor 42.0.255.3 send-community both
+  neighbor 42.0.255.3 route-reflector-client
+  neighbor 42.0.255.4 activate
+  neighbor 42.0.255.4 send-community both
+  neighbor 42.0.255.4 route-reflector-client
+ exit-address-family
+ !
+ address-family l2vpn vpls
+  neighbor 42.0.255.2 activate
+  neighbor 42.0.255.2 send-community extended
+  neighbor 42.0.255.2 suppress-signaling-protocol ldp
+ exit-address-family
+ !
+ address-family ipv4 vrf ca
+  redistribute connected
+ exit-address-family
+ !
+ address-family ipv4 vrf ca-srv
+  redistribute connected
+ exit-address-family
+!
+!

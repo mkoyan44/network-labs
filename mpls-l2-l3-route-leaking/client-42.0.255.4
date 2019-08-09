@@ -1,0 +1,58 @@
+hostname client-2
+!
+ip vrf ca
+ rd 1:1
+ route-target export 1:1
+ route-target import 100:100
+!
+!         
+interface Loopback0
+ ip address 42.0.255.4 255.255.255.255
+ ip ospf 1 area 0
+!
+interface Loopback88
+ ip vrf forwarding ca
+ ip address 55.0.4.1 255.255.255.0
+ ip ospf cost 90
+!
+interface GigabitEthernet3
+ ip address 42.0.0.18 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+ ip ospf cost 90
+ negotiation auto
+ mpls ip
+ bfd interval 50 min_rx 50 multiplier 3
+!
+interface GigabitEthernet4
+ ip address 42.0.0.14 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+ ip ospf cost 100
+ negotiation auto
+ mpls ip
+ bfd interval 50 min_rx 50 multiplier 3
+!
+router ospf 1
+ router-id 42.0.255.4
+ bfd all-interfaces
+!
+router bgp 1
+ bgp router-id 42.0.255.3
+ bgp log-neighbor-changes
+ neighbor 42.0.255.1 remote-as 1
+ neighbor 42.0.255.1 update-source Loopback0
+ neighbor 42.0.255.1 fall-over bfd
+ neighbor 42.0.255.2 remote-as 1
+ neighbor 42.0.255.2 update-source Loopback0
+ neighbor 42.0.255.2 fall-over bfd
+ !
+ address-family vpnv4
+  neighbor 42.0.255.1 activate
+  neighbor 42.0.255.1 send-community both
+  neighbor 42.0.255.2 activate
+  neighbor 42.0.255.2 send-community both
+ exit-address-family
+ !
+ address-family ipv4 vrf ca
+  redistribute connected

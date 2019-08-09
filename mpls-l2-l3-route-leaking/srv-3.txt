@@ -1,0 +1,8 @@
+hostname srv-3
+interface GigabitEthernet1/0.11
+ encapsulation dot1Q 11
+ ip address 192.168.11.2 255.255.255.0 secondary
+ ip address 10.0.0.11 255.255.255.0
+ vrrp 1 ip 10.0.0.3
+ vrrp 2 ip 10.0.0.4
+ vrrp 2 priority 110

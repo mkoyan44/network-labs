@@ -1,0 +1,7 @@
+interface GigabitEthernet1/0.22
+ encapsulation dot1Q 22
+ ip address 192.168.22.2 255.255.255.0 secondary
+ ip address 10.0.0.22 255.255.255.0
+ vrrp 1 ip 10.0.0.3
+ vrrp 1 priority 110
+ vrrp 2 ip 10.0.0.4
