@@ -1,0 +1,109 @@
+set system host-name vMX-1
+set system root-authentication encrypted-password "$1$4SSAnHcC$zH4RGn6ArK.lhYMOuFPpX1"
+
+set routing-options router-id 10.0.255.1
+set interfaces lo0 unit 0 family inet address 10.0.255.1/32
+
+set interfaces ge-0/0/0 unit 0 family inet address 10.0.12.1/24
+set interfaces ge-0/0/0 unit 0 family mpls
+set interfaces ge-0/0/1 unit 0 family inet address 10.0.13.1/24
+set interfaces ge-0/0/1 unit 0 family mpls
+
+# ordinard ipv4 NLRI
+set interfaces ge-0/0/2 unit 0 family inet address 42.0.1.1/24
+# L3VPN NLRI
+set interfaces ge-0/0/3 unit 0 family inet address 55.0.1.1/24
+
+# enable mpls on interface to distribute labels
+set protocols mpls interface ge-0/0/0.0
+set protocols mpls interface ge-0/0/1.0
+set protocols mpls interface lo0
+
+# untaged vpls interface 
+set interfaces ge-0/0/4 encapsulation ethernet-vpls
+set interfaces ge-0/0/4 unit 0
+
+# tagged,for vpls
+set interfaces ge-0/0/5 vlan-tagging
+set interfaces ge-0/0/5 encapsulation vlan-vpls
+set interfaces ge-0/0/5 unit 700 encapsulation vlan-vpls
+set interfaces ge-0/0/5 unit 700 vlan-id 700
+
+# QinQ
+set interfaces ge-0/0/6 flexible-vlan-tagging
+set interfaces ge-0/0/6 encapsulation flexible-ethernet-services
+set interfaces ge-0/0/6 unit 701 encapsulation vlan-vpls
+set interfaces ge-0/0/6 unit 701 vlan-tags outer 701
+set interfaces ge-0/0/6 unit 701 vlan-tags inner 70
+
+
+# 
+set protocols bgp log-updown
+set protocols bgp cluster 10.0.255.1
+set protocols bgp group ibgp_neigbors local-address 10.0.255.1
+set protocols bgp group ibgp_neigbors family inet unicast
+set protocols bgp group ibgp_neigbors family inet-vpn unicast
+set protocols bgp group ibgp_neigbors family l2vpn signaling
+set protocols bgp group ibgp_neigbors peer-as 1
+set protocols bgp group ibgp_neigbors local-as 1
+# bfd for faster neighbor detection
+set protocols bgp group ibgp_neigbors bfd-liveness-detection minimum-interval 50
+set protocols bgp group ibgp_neigbors bfd-liveness-detection minimum-receive-interval 50
+set protocols bgp group ibgp_neigbors bfd-liveness-detection multiplier 3
+set protocols bgp group ibgp_neigbors neighbor 10.0.255.2
+set protocols bgp group ibgp_neigbors neighbor 10.0.255.3
+# export bgp ipv4 NLRI
+set protocols bgp group ibgp_peers export bgp_adv_ipv4
+
+
+# ospf with p2p neighbors 
+set protocols ospf area 0.0.0.0 interface ge-0/0/0.0 interface-type p2p
+# assign infinite metric of failed link in case of ECMP
+set protocols ospf area 0.0.0.0 interface ge-0/0/0.0 ldp-synchronization
+# enable BFD
+set protocols ospf area 0.0.0.0 interface ge-0/0/0.0 bfd-liveness-detection minimum-interval 50
+set protocols ospf area 0.0.0.0 interface ge-0/0/0.0 bfd-liveness-detection minimum-receive-interval 50
+set protocols ospf area 0.0.0.0 interface ge-0/0/0.0 bfd-liveness-detection multiplier 3
+set protocols ospf area 0.0.0.0 interface ge-0/0/1.0 interface-type p2p
+
+set protocols ospf area 0.0.0.0 interface ge-0/0/1.0 ldp-synchronization
+set protocols ospf area 0.0.0.0 interface ge-0/0/1.0 bfd-liveness-detection minimum-interval 50
+set protocols ospf area 0.0.0.0 interface ge-0/0/1.0 bfd-liveness-detection minimum-receive-interval 50
+set protocols ospf area 0.0.0.0 interface ge-0/0/1.0 bfd-liveness-detection multiplier 3
+set protocols ospf area 0.0.0.0 interface lo0.0 passive
+
+# assign metric for each label
+set protocols ldp track-igp-metric
+set protocols ldp transport-address router-id
+set protocols ldp interface ge-0/0/0.0
+set protocols ldp interface ge-0/0/1.0
+set protocols ldp interface lo0.0
+# use two TCP/UDP for ECMP to not black hole traffic
+set protocols ldp session-protection
+
+set policy-options policy-statement bgp_adv_ipv4 term 2 from route-filter 42.0.1.0/24 exact
+set policy-options policy-statement bgp_adv_ipv4 term 2 then accept
+
+set routing-instances ca instance-type vrf
+set routing-instances ca interface ge-0/0/3.0
+set routing-instances ca route-distinguisher 1:1
+set routing-instances ca vrf-target import target:1:1
+set routing-instances ca vrf-target export target:1:1
+# assign label for client FEC
+set routing-instances ca vrf-table-label
+
+# use vpls 
+set routing-instances kompela-vpls instance-type vpls
+# pop label befor forwarding to VPLS,Normarlization
+set routing-instances kompela-vpls vlan-id none
+# member interfaces
+set routing-instances kompela-vpls interface ge-0/0/4.0
+set routing-instances kompela-vpls interface ge-0/0/5.700
+set routing-instances kompela-vpls interface ge-0/0/6.701
+set routing-instances kompela-vpls route-distinguisher 2:2
+set routing-instances kompela-vpls vrf-target import target:2:2
+set routing-instances kompela-vpls vrf-target export target:2:2
+# should be enabled on VM 
+set routing-instances kompela-vpls protocols vpls no-tunnel-services
+# unique site identifier
+set routing-instances kompela-vpls protocols vpls site vMX-1 site-identifier 1

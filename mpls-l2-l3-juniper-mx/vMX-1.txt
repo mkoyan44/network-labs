@@ -1,0 +1,161 @@
+interfaces {
+    ge-0/0/0 {
+        unit 0 {
+            family inet {               
+                address 10.0.12.1/24;
+            }
+            family mpls;
+        }
+    }
+    ge-0/0/1 {
+        unit 0 {
+            family inet {
+                address 10.0.13.1/24;
+            }
+            family mpls;
+        }
+    }
+    ge-0/0/2 {
+        unit 0 {
+            family inet {
+                address 42.0.1.1/24;
+            }
+        }
+    }
+    ge-0/0/3 {
+        unit 0 {
+            family inet {               
+                address 55.0.1.1/24;
+            }
+        }
+    }
+    ge-0/0/4 {
+        encapsulation ethernet-vpls;
+        unit 0;
+    }
+    ge-0/0/5 {
+        vlan-tagging;
+        encapsulation vlan-vpls;
+        unit 700 {
+            encapsulation vlan-vpls;
+            vlan-id 700;
+        }
+    }
+    ge-0/0/6 {
+        flexible-vlan-tagging;
+        encapsulation flexible-ethernet-services;
+        unit 701 {
+            encapsulation vlan-vpls;
+            vlan-tags outer 701 inner 70;
+        }                               
+    }
+    lo0 {
+        unit 0 {
+            family inet {
+                address 10.0.255.1/32;
+            }
+        }
+    }
+}
+routing-options {
+    router-id 10.0.255.1;
+}
+protocols {
+    mpls {
+        interface ge-0/0/0.0;
+        interface ge-0/0/1.0;
+    }
+    bgp {
+        log-updown;
+        cluster 10.0.255.1;
+        group ibgp_neigbors {
+            local-address 10.0.255.1;
+            family inet {               
+                unicast;
+            }
+            family inet-vpn {
+                unicast;
+            }
+            family l2vpn {
+                signaling;
+            }
+            export bgp_adv_ipv4;
+            peer-as 1;
+            local-as 1;
+            bfd-liveness-detection {
+                minimum-interval 50;
+                minimum-receive-interval 50;
+                multiplier 3;
+            }
+            neighbor 10.0.255.2;
+            neighbor 10.0.255.3;
+        }
+    }
+    ospf {
+        area 0.0.0.0 {
+            interface ge-0/0/0.0 {      
+                bfd-liveness-detection {
+                    minimum-interval 50;
+                    minimum-receive-interval 50;
+                    multiplier 3;
+                }
+            }
+            interface ge-0/0/1.0 {
+                bfd-liveness-detection {
+                    minimum-interval 50;
+                    minimum-receive-interval 50;
+                    multiplier 3;
+                }
+            }
+            interface lo0.0;
+        }
+    }
+    ldp {
+        transport-address router-id;
+        interface ge-0/0/0.0;
+        interface ge-0/0/1.0;
+        interface lo0.0;
+    }
+}                                       
+policy-options {
+    policy-statement bgp_adv_ipv4 {
+        term 2 {
+            from {
+                route-filter 42.0.1.0/24 exact;
+            }
+            then accept;
+        }
+    }
+}
+routing-instances {
+    ca {
+        instance-type vrf;
+        interface ge-0/0/3.0;
+        route-distinguisher 1:1;
+        vrf-target {
+            import target:1:1;
+            export target:1:1;
+        }
+        vrf-table-label;
+    }
+    kompela-vpls {
+        instance-type vpls;             
+        vlan-id none;
+        interface ge-0/0/4.0;
+        interface ge-0/0/5.700;
+        interface ge-0/0/6.701;
+        route-distinguisher 2:2;
+        vrf-target {
+            import target:2:2;
+            export target:2:2;
+        }
+        protocols {
+            vpls {
+                no-tunnel-services;
+                site vMX-1 {
+                    site-identifier 1;
+                }
+            }
+        }
+    }
+}
