@@ -1,0 +1,131 @@
+
+cat > /etc/dhcpd.conf <<EOF
+log-facility local7;
+ddns-update-style none;
+default-lease-time 600;
+max-lease-time 7200;
+
+
+option domain-name-servers 8.8.8.8;
+
+subnet 10.42.43.0 netmask 255.255.255.0 {
+    range 10.42.43.50 10.42.43.70;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.42.43.255;
+    option routers 10.42.43.1;
+}
+EOF
+
+cat > /etc/hostapd/hostapd.conf << EOF
+
+### Wireless network name ###
+interface=wlan0
+
+## SSID
+ssid=mkoyan
+
+# Country code (ISO/IEC 3166-1)
+country_code=JP
+
+# Operation mode (a = IEEE 802.11a (5 GHz), b = IEEE 802.11b (2.4 GHz)
+hw_mode=g
+
+# Channel number
+channel=0
+
+# Maximum number of stations allowed
+max_num_sta=5
+
+# Bit field: bit0 = WPA, bit1 = WPA2
+wpa=2
+
+# Bit field: 1=wpa, 2=wep, 3=both
+auth_algs=1
+
+# Set of accepted cipher suites
+rsn_pairwise=CCMP
+
+# Set of accepted key management algorithms
+wpa_key_mgmt=WPA-PSK
+wpa_passphrase=mkoyan111mkoyan
+
+# hostapd event logger configuration
+logger_stdout=-1
+logger_stdout_level=2
+
+#hidden ssid
+ignore_broadcast_ssid=1
+
+#filter mac addresses
+#macaddr_acl=1
+#accept_mac_file=/etc/hostapd/mac_list.txt
+EOF
+
+# sysctl 
+cat > /etc/sysctl.d/ipv4.conf <<EOF
+net.ipv4.ip_forward=1
+EOF
+sysctl -p /etc/sysctl.d/ipv4.conf
+
+
+cat > /etc/systemd/system/wlan0.service <<EOF
+[Unit]
+Description=Wireless Networking
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+ExecStart=/usr/sbin/ip link set dev wlan0 up
+ExecStart=/usr/sbin/ifconfig wlan0 10.42.43.1/24
+
+ExecStop=/usr/sbin/ip addr flush dev wlan0
+ExecStop=/usr/sbin/ip link set dev wlan0 down
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -t filter -A FORWARD -i wlan0 -o eth0 -j ACCEPT
+iptables -t filter -A FORWARD -i eth0 -o wlan0 -j ACCEPT
+iptables -t nat -A POSTROUTING -s 10.42.43.0/24 -o eth0 -j MASQUERADE
+iptables-save > /etc/iptables/rules.v4
+
+cat > /etc/systemd/system/iptables.service <<EOF
+[Unit]
+Description=Packet Filtering Framework
+DefaultDependencies=no
+After=systemd-sysctl.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/iptables-restore /etc/iptables/rules.v4
+ExecReload=/usr/bin/iptables-restore /etc/iptables/rules.v4
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+
+cat > /etc/systemd/system/hostpad.service <<EOF
+[Unit]
+Description=Access Point Service
+After=multi-user.target, wlan0.service
+
+[Service]
+Type=idle
+ExecStart=/usr/bin/hostapd /etc/hostapd/hostapd.conf
+ExecStop=/usr/bin/kill -9 `/usr/bin/pgrep hostapd`
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+
+systemctl enable hostapd.service wlan0.service iptables.service
+systemctl restart hostapd.service wlan0.service iptables.service
+systemctl status hostapd.service wlan0.service iptables.service
+
