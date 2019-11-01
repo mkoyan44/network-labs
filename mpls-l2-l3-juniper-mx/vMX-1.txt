@@ -79,7 +79,6 @@ protocols {
             family l2vpn {
                 signaling;
             }
-            export bgp_adv_ipv4;
             peer-as 1;
             local-as 1;
             bfd-liveness-detection {
@@ -90,10 +89,15 @@ protocols {
             neighbor 10.0.255.2;
             neighbor 10.0.255.3;
         }
+        group ibgp_peers {
+            export bgp_adv_ipv4;
+        }
     }
-    ospf {
+    ospf {                              
         area 0.0.0.0 {
-            interface ge-0/0/0.0 {      
+            interface ge-0/0/0.0 {
+                interface-type p2p;
+                ldp-synchronization;
                 bfd-liveness-detection {
                     minimum-interval 50;
                     minimum-receive-interval 50;
@@ -101,23 +105,32 @@ protocols {
                 }
             }
             interface ge-0/0/1.0 {
+                interface-type p2p;
+                ldp-synchronization;
                 bfd-liveness-detection {
                     minimum-interval 50;
                     minimum-receive-interval 50;
                     multiplier 3;
                 }
             }
-            interface lo0.0;
-        }
+            interface lo0.0 {
+                passive;
+            }
+        }                               
     }
     ldp {
+        track-igp-metric;
         transport-address router-id;
         interface ge-0/0/0.0;
         interface ge-0/0/1.0;
         interface lo0.0;
+        session-protection;
     }
-}                                       
+}
 policy-options {
+    prefix-list loopback_prefix {
+        10.0.255.1/32;
+    }
     policy-statement bgp_adv_ipv4 {
         term 2 {
             from {
@@ -126,7 +139,7 @@ policy-options {
             then accept;
         }
     }
-}
+}                                       
 routing-instances {
     ca {
         instance-type vrf;
@@ -139,7 +152,7 @@ routing-instances {
         vrf-table-label;
     }
     kompela-vpls {
-        instance-type vpls;             
+        instance-type vpls;
         vlan-id none;
         interface ge-0/0/4.0;
         interface ge-0/0/5.700;
@@ -149,7 +162,7 @@ routing-instances {
             import target:2:2;
             export target:2:2;
         }
-        protocols {
+        protocols {                     
             vpls {
                 no-tunnel-services;
                 site vMX-1 {

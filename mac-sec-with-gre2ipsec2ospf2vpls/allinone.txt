@@ -1,0 +1,128 @@
+export client ca and c1 cert/key and import to the client, repeat line in IP sec with the correct name: '/ip ipsec identity add auth-method=digital-signature certificate=CLIENT_IMPORTED_CRT_NAME peer=to-mk-2-ipsec policy-template-group=ipsec-group-am'
+
+
+################ MK-1 #################
+# ca, create ca for each backbone mk
+/certificate add name=ca common-name="mk-1-ca" days-valid=6928
+/certificate sign ca ca-crl-host=10.0.80.1
+
+# server crt
+/certificate add common-name=10.0.80.1 subject-alt-name=IP:10.0.80.1 key-usage=tls-server name=mk1-srv-crt days-valid=6928
+/certificate sign mk1-srv-crt ca=ca
+
+/certificate add common-name=c1 key-usage=tls-client name=c1 days-valid=6928
+/certificate sign c1 ca=ca
+
+# initial 
+/system identity set name=mk-1
+/ip neighbor discovery-settings set discover-interface-list=all
+/tool bandwidth-server set authenticate=no
+
+# bridges
+/interface bridge add name=br-vpls2ipsec mtu=1500 protocol-mode=none
+/interface bridge add name=lo0 mtu=1500 protocol-mode=none
+
+# init addressing
+/interface vlan add interface=ether1 mtu=1592 name=eth1-transport-vlan-10 vlan-id=10
+/interface vlan add interface=eth1-transport-vlan-10 mtu=1592 name=backbone-isp-1 vlan-id=11
+
+/ip address add address=10.0.80.1/24 interface=backbone-isp-1
+/interface gre add allow-fast-path=no disabled=no local-address=10.0.80.1 name=to-mk-2 remote-address=10.0.80.2
+
+# ip
+/ip address add address=10.0.81.1/30 interface=to-mk-2
+/ip address add address=10.255.255.1/32 interface=lo0
+/ip address add address=192.168.0.1/24 interface=br-vpls2ipsec
+
+
+# add vpls to bridge
+/interface vpls add advertised-l2mtu=1514 disabled=no l2mtu=1514 name=vpls1 remote-peer=10.255.255.2 vpls-id=1:1
+/interface bridge port add bridge=br-vpls2ipsec interface=vpls1
+/interface bridge port add bridge=br-vpls2ipsec interface=ether4
+
+# ospf 
+/routing ospf instance set [ find default=yes ] router-id=10.255.255.1
+/routing ospf interface add interface=to-mk-2 network-type=broadcast
+/routing ospf interface add network-type=broadcast passive=yes
+
+/routing ospf network add area=backbone disabled=no network=10.0.81.0/30
+/routing ospf network add area=backbone disabled=no network=10.255.255.1/32
+
+# ipsec
+/ip ipsec policy group add name=ipsec-group-am
+/ip ipsec profile add enc-algorithm=aes-128 hash-algorithm=sha256 name=ipsec-profile-am
+/ip ipsec peer add address=10.0.80.2/32 disabled=no exchange-mode=ike2 local-address=10.0.80.1 name=to-mk-2-ipsec profile=ipsec-profile-am
+/ip ipsec proposal add auth-algorithms=sha256 enc-algorithms=aes-128-ctr name=ipsec-proposal-am pfs-group=modp2048
+/ip ipsec identity add auth-method=digital-signature certificate=cert_export_client.crt_0 peer=to-mk-2-ipsec policy-template-group=ipsec-group-am
+/ip ipsec policy add disabled=no peer=to-mk-2-ipsec proposal=ipsec-proposal-am protocol=gre
+
+# mpls
+/mpls ldp set enabled=yes lsr-id=10.255.255.1 transport-address=10.255.255.1
+/mpls ldp interface add interface=to-mk-2 transport-address=10.255.255.1
+/mpls interface set [ find default=yes ] mpls-mtu=1604
+
+
+# mtu
+/interface ethernet set [ find default-name=ether1 ] l2mtu=1610 mtu=1596
+/mpls interface set [ find default=yes ] mpls-mtu=1596
+
+
+
+
+######################## MK-2 ############## initial 
+/system identity set name=mk-2
+/ip neighbor discovery-settings set discover-interface-list=all
+/tool bandwidth-server set authenticate=no
+
+# bridges
+/interface bridge add name=br-vpls2ipsec mtu=1500 protocol-mode=none
+/interface bridge add name=lo0 mtu=1500 protocol-mode=none
+
+
+
+# init addressing
+/interface vlan add interface=ether1 mtu=1592 name=eth1-transport-vlan-10 vlan-id=10
+/interface vlan add interface=eth1-transport-vlan-10 mtu=1592 name=backbone-isp-1 vlan-id=11
+
+/ip address add address=10.0.80.1/24 interface=backbone-isp-1
+
+/interface gre add allow-fast-path=no disabled=no local-address=10.0.80.2 name=to-mk-1 remote-address=10.0.80.1
+
+# ip
+/ip address add address=10.0.81.2/30 interface=to-mk-1
+/ip address add address=10.255.255.2/32 interface=lo0
+/ip address add address=192.168.0.2/24 interface=br-vpls2ipsec
+
+
+# add vpls to bridge
+/interface vpls add advertised-l2mtu=1514 disabled=no l2mtu=1514 name=vpls1 remote-peer=10.255.255.1 vpls-id=1:1
+/interface bridge port add bridge=br-vpls2ipsec interface=vpls1
+/interface bridge port add bridge=br-vpls2ipsec interface=ether4
+
+# ospf 
+/routing ospf instance set [ find default=yes ] router-id=10.255.255.2
+/routing ospf interface add interface=to-mk-1 network-type=broadcast
+/routing ospf interface add network-type=broadcast passive=yes
+
+/routing ospf network add area=backbone disabled=no network=10.0.81.0/30
+/routing ospf network add area=backbone disabled=no network=10.255.255.2/32
+
+# ipsec
+/ip ipsec policy group add name=ipsec-group-am
+/ip ipsec profile add enc-algorithm=aes-128 hash-algorithm=sha256 name=ipsec-profile-am
+/ip ipsec peer add address=10.0.80.1/32 disabled=no exchange-mode=ike2 local-address=10.0.80.2 name=to-mk-1-ipsec profile=ipsec-profile-am
+/ip ipsec proposal add auth-algorithms=sha256 enc-algorithms=aes-128-ctr name=ipsec-proposal-am pfs-group=modp2048
+/ip ipsec identity add auth-method=digital-signature certificate=cert_export_client.crt_0 peer=to-mk-1-ipsec policy-template-group=ipsec-group-am
+/ip ipsec policy add disabled=no peer=to-mk-1-ipsec proposal=ipsec-proposal-am protocol=gre
+
+# mpls
+/mpls ldp set enabled=yes lsr-id=10.255.255.2 transport-address=10.255.255.2
+/mpls ldp interface add interface=to-mk-1 transport-address=10.255.255.2
+/mpls interface set [ find default=yes ] mpls-mtu=1604
+
+# mtu
+/interface ethernet set [ find default-name=ether1 ] l2mtu=1610 mtu=1596
+/interface vlan add interface=ether1 l2mtu=1606 mtu=1592 name=eth1-transport-vlan-10 vlan-id=10
+/mpls interface set [ find default=yes ] mpls-mtu=1596
+
+
