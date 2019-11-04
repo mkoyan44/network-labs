@@ -1,0 +1,32 @@
+/certificate add name=ca common-name=mkoyan.local days-valid=3650 key-size=2048 key-usage=crl-sign,key-cert-sign
+
+/certificate add name=server common-name=*.mkoyan.local days-valid=3650 key-size=2048 key-usage=digital-signature,key-encipherment,tls-server
+/certificate add name=client common-name=client.mkoyan.local days-valid=3650 key-size=2048 key-usage=tls-client
+
+/certificate sign server ca=mkoyan.local name=server
+/certificate sign client ca=mkoyan.local name=client
+
+
+
+/interface bridge add mtu=1500 name=br-ovpn protocol-mode=none
+
+/ip pool add name=ovpn_bridge_pool ranges=192.168.22.100-192.168.22.110
+
+/ppp profile add bridge=br-ovpn change-tcp-mss=yes local-address=192.168.22.11 name=\
+    ovpn-profile only-one=yes remote-address=ovpn_bridge_pool use-compression=\
+    no use-encryption=yes use-mpls=no use-upnp=no
+
+/interface ovpn-server server set auth=sha1,md5,null certificate=server cipher=\
+    blowfish128,aes128,aes192,aes256,null default-profile=ovpn-profile enabled=\
+    yes mode=ethernet require-client-certificate=yes
+
+/ip address add address=10.0.80.1/24 interface=ether1 network=10.0.80.0
+/ip address add address=192.168.22.11/24 interface=br-ovpn network=192.168.22.0
+
+/ppp secret
+add name=w password=w profile=ovpn-profile service=ovpn
+add name=client password=client profile=ovpn-profile service=ovpn
+
+/system clock set time-zone-autodetect=no
+/system identity set name=mk-1
+/system logging add topics=ovpn

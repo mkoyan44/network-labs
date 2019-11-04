@@ -1,0 +1,21 @@
+# import ca, client certificate
+/interface bridge add name=br-ovpn
+
+/interface ovpn-client
+add certificate=client cipher=aes128 connect-to=10.0.80.1 mac-address=02:BA:D9:42:E2:5B mode=\
+    ethernet name=ovpn-to-mk-1 password=client user=client verify-server-certificate=yes
+
+/interface bridge port
+add bridge=br-ovpn interface=ovpn-to-mk-1
+add bridge=br-ovpn interface=ether2
+
+/ip address
+add address=10.0.80.2/24 interface=ether1 network=10.0.80.0
+add address=192.168.22.22/24 interface=br-ovpn network=192.168.22.0
+
+/ip route vrf
+add export-route-targets=2:2 import-route-targets=2:2 interfaces=br-ovpn route-distinguisher=2:2 \
+    routing-mark=l2-ovpn-vrf
+
+/system clock set time-zone-autodetect=no
+/system identity set name=mk-2
