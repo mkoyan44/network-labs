@@ -1,0 +1,115 @@
+# correct time before certficicate generation
+/system clock set time-zone-autodetect=no
+/system identity set name=mk-ipsec
+
+# disable after verifying functionality
+/system logging add topics=ipsec
+
+# certificate generation
+
+/certificate add name=ca.mkoyan.local \
+	country=AM \
+	state=Yerevan 
+	locality=Yerevan \
+	organization=AMS \
+	common-name=ca.mkoyan.local \ 
+	# important must match with common-name, and dns must not be resolvable
+	subject-alt-name=DNS:ca.mkoyan.local \
+	key-size=2048 \
+	days-valid=3650 \
+	trusted=yes \
+	# important
+	key-usage=digital-signature,key-encipherment,data-encipherment,key-cert-sign,crl-sign
+
+
+# server cert itslef
+/certificate add name=vpn.mkoyan.local \
+	country=AM \
+	state=Yerevan 
+	locality=Yerevan \
+	organization=AMS \
+	common-name=vpn.mkoyan.local \ 
+	# important must match with common-name, and dns must not be resolvable
+	subject-alt-name=DNS:vpn.mkoyan.local \
+	key-size=2048 \
+	days-valid=3650 \
+	trusted=yes \
+	# important
+	key-usage=tls-server
+
+# client certs, clients must provide email as an main attribute of identification
+/certificate add name=c1@mkoyan.local \
+	country=AM \
+	state=Yerevan 
+	locality=Yerevan \
+	organization=AMS \
+	common-name=c1@mkoyan.local \ 
+	# important must match with common-name
+	subject-alt-name=EMAIL:c1@mkoyan.local \
+	key-size=2048 \
+	days-valid=3650 \
+	trusted=yes \
+	# important
+	key-usage=tls-client
+
+
+# ipsec and initial communication
+
+/interface bridge add name=br-ike2-ipsec
+/interface bridge add name=lo0
+
+/ip address
+	add address=10.0.80.2/30 interface=ether1 network=10.0.80.0
+	add address=10.0.255.2 interface=lo0 network=10.0.255.2
+	add address=10.0.100.1/24 interface=br-ike2-ipsec network=10.0.100.0
+
+/routing ospf instance set [ find default=yes ] router-id=10.0.255.2
+
+/routing ospf interface add interface=ether1 network-type=broadcast 
+						add network-type=broadcast passive=yes
+# advertise ipsec client with ospf 
+/routing ospf network
+	add area=backbone network=10.0.80.0/30
+	add area=backbone network=10.0.255.2/32
+	add area=backbone network=10.0.100.0/24
+
+# group for peer templates,
+/ip ipsec policy group add name=group-vpn.mkoyan.local
+
+
+
+#choose hash, and enc algorithms carfully, some OS requires specific type of them
+#phase1 hash,enc attirubtes used to build secure connections for furter SA keys aggrement
+/ip ipsec profile add dh-group=modp2048,modp1536,modp1024 enc-algorithm=aes-256,aes-192,aes-128 hash-algorithm=sha256 name=profile-vpn.mkoyan.local
+# 10.0.255.2 is local loopback of listening ipsec service, specify it even it is getting packets from DNAT, static NAT
+# Peer configuration settings are used to establish connections between IKE daemons. 
+#PHASE1
+/ip ipsec peer
+add exchange-mode=ike2 local-address=10.0.255.2 name=peer-vpn.mkoyan.local passive=yes profile=profile-vpn.mkoyan.local
+
+
+#PHASE2 attributes 
+#SA 
+/ip ipsec proposal
+add auth-algorithms=sha512,sha256,sha1 enc-algorithms=aes-256-cbc,aes-256-ctr,aes-256-gcm,aes-192-ctr,aes-192-gcm,aes-128-cbc,aes-128-ctr,aes-128-gcm lifetime=8h name=prposal-vpn.mkoyan.local pfs-group=none
+
+# ip pool for user, 
+/ip pool
+add name=pool-vpn.mkoyan.local ranges=10.0.100.10-10.0.100.20
+
+# client push settings
+/ip ipsec mode-config
+add address-pool=pool-vpn.mkoyan.local name=mode-config.vpn.mkoyan.local split-include=10.0.200.0/24 static-dns=10.0.255.1 system-dns=no
+
+
+# remote-id=user-fqdn and match by certificates
+/ip ipsec identity
+add auth-method=digital-signature certificate=vpn.mkoyan.local generate-policy=port-strict match-by=certificate mode-config=mode-config.vpn.mkoyan.local peer=peer-vpn.mkoyan.local policy-template-group=\
+    group-vpn.mkoyan.local remote-certificate=c1@mkoyan.local remote-id=user-fqdn:c1@mkoyan.local
+
+
+# ipsec policy, choose encrypton flow, template
+# ipsec policy table is used to determine whether security settings should be applied to a packet,
+# PHASE2 
+/ip ipsec policy
+add dst-address=10.0.100.0/24 group=group-vpn.mkoyan.local proposal=prposal-vpn.mkoyan.local src-address=0.0.0.0/0 template=yes

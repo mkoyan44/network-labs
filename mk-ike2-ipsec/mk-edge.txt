@@ -1,0 +1,30 @@
+# correct clocks
+/system clock set time-zone-autodetect=no
+/system identity set name=mk-edge
+
+/interface bridge add name=br-services
+/interface bridge add add name=lo0
+
+/routing ospf instance set [ find default=yes ] router-id=10.0.255.1
+/ip address
+	add address=10.0.80.1/30 interface=ether1 network=10.0.80.0
+	add address=10.0.71.1/24 interface=ether10 network=10.0.71.0
+	add address=10.0.255.1 interface=lo0 network=10.0.255.1
+	add address=10.0.200.1/24 interface=br-services network=10.0.200.0
+
+/ip firewall nat
+add action=src-nat chain=srcnat out-interface=ether10 src-address=10.0.255.2 \
+    to-addresses=10.0.71.1
+
+# ikev2 ipsec works on udp 500,4500, just forward it to loopback of mk-ipsec device where the service listen 
+add action=dst-nat chain=dstnat dst-address=10.0.71.1 dst-port=500 \
+    in-interface=ether10 protocol=udp to-addresses=10.0.255.2 to-ports=500
+add action=dst-nat chain=dstnat dst-address=10.0.71.1 dst-port=4500 \
+    in-interface=ether10 protocol=udp to-addresses=10.0.255.2 to-ports=4500
+
+# add ospf to increase availability
+/routing ospf interface add interface=ether1 network-type=broadcast add network-type=broadcast
+/routing ospf network 
+	add area=backbone network=10.0.255.1/32
+	add area=backbone network=10.0.80.0/30
+	add area=backbone network=10.0.200.0/24

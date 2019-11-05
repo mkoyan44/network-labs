@@ -1,0 +1,133 @@
+/certificate add name=CA.ike2.xyz country=MY \
+	state=Selangor locality=Cyberjaya \
+	organization=IKE2.xyz \
+	common-name=ca.ike2.xyz \ 
+	subject-alt-name=DNS:ca.mkoyan.local \
+	key-size=2048 \
+	days-valid=3650 \
+	trusted=yes =
+	key-usage=digital-signature,key-encipherment,data-encipherment,key-cert-sign,crl-sign
+
+
+/certificate sign CA.ike2.xyz
+
+
+/certificate add name=vpn.ike2.xyz
+	country=MY state=Selangor
+	locality=Cyberjaya
+	organization=IKE2.xyz unit=VPN
+
+	common-name=vpn.ike2.xyz subject-
+	alt-name=DNS:vpn.ike2.xyz key-
+	size=2048 days-valid=1095
+
+	trusted=yes key-usage=tls-server
+
+
+/certificate sign vpn.ike2.xyz
+	ca=CA.ike2.xyz
+
+
+
+
+/certificate add name=vpn.ike2.xyz
+	country=MY state=Selangor
+	locality=Cyberjaya
+	organization=IKE2.xyz unit=VPN
+
+	common-name=vpn.ike2.xyz subject-
+	alt-name=email:c1@ike2.xyz key-
+	size=2048 days-valid=1095
+
+	trusted=yes key-usage=tls-client
+
+/certificate add name=~client-
+template@vpn.ike2.xyz country=MY
+
+state=Selangor locality=Cyberjaya
+
+organization=IKE2.xyz common-
+name=~client-template@vpn.ike2.xyz
+
+subject-alt-name=email:~client-
+template@vpn.ike2.xyz key-size=2048
+
+days-valid=365 trusted=yes key-
+usage=tls-client
+
+/interface bridge
+add name=br-ike2-ipsec-clients
+add name=lo0
+/interface vpls
+add mac-address=02:1C:80:F7:FD:37 name=vpls1 remote-peer=10.0.80.2 vpls-id=1:1
+/interface wireless security-profiles
+set [ find default=yes ] supplicant-identity=MikroTik
+/ip ipsec policy group
+add name=group-mkoyan.local
+/ip ipsec profile
+add dh-group=modp2048,modp1536,modp1024 enc-algorithm=aes-256,aes-192,aes-128 \
+    hash-algorithm=sha256 name=peer-profile-phase1-mkoyan.local
+/ip ipsec peer
+add exchange-mode=ike2 local-address=10.0.71.1 name=vpn.mkoyan.local-peers \
+    passive=yes profile=peer-profile-phase1-mkoyan.local
+/ip ipsec proposal
+set [ find default=yes ] disabled=yes
+add auth-algorithms=sha512,sha256,sha1 enc-algorithms="aes-256-cbc,aes-256-ctr,a\
+    es-256-gcm,aes-192-ctr,aes-192-gcm,aes-128-cbc,aes-128-ctr,aes-128-gcm" \
+    lifetime=8h name=prposal-phase2.mkoyan.local pfs-group=none
+/ip pool
+add name=ike2-ipsec-ip-pool ranges=10.0.88.10-10.0.88.20
+/ip ipsec mode-config
+add address-pool=ike2-ipsec-ip-pool name=mode-config.mkoyan.local \
+    split-include=10.0.88.0/24,192.168.0.0/24 static-dns=10.0.88.1 system-dns=\
+    no
+/routing bgp instance
+set default disabled=yes router-id=10.0.80.1
+/routing ospf instance
+set [ find default=yes ] router-id=10.0.255.1
+/interface bridge port
+add interface=vpls1
+/interface ovpn-server server
+set auth=sha1,md5,null cipher=blowfish128,aes128,aes192,aes256,null mode=\
+    ethernet require-client-certificate=yes
+/ip address
+add address=10.0.71.1/24 interface=ether10 network=10.0.71.0
+add address=10.0.80.1/24 interface=ether1 network=10.0.80.0
+add address=10.0.88.1/24 interface=br-ike2-ipsec-clients network=10.0.88.0
+add address=10.0.255.1 interface=lo0 network=10.0.255.1
+/ip firewall nat
+add action=masquerade chain=srcnat dst-address=10.0.80.0/30 src-address=\
+    10.0.71.0/24
+/ip ipsec identity
+add auth-method=digital-signature certificate=vpn.mkoyan.local generate-policy=\
+    port-strict match-by=certificate mode-config=mode-config.mkoyan.local peer=\
+    vpn.mkoyan.local-peers policy-template-group=group-mkoyan.local \
+    remote-certificate=c1@mkoyan.local remote-id=user-fqdn:c1@mkoyan.local
+/ip ipsec policy
+add dst-address=0.0.0.0/0 group=group-mkoyan.local proposal=\
+    prposal-phase2.mkoyan.local src-address=0.0.0.0/0 template=yes
+/mpls ldp
+set lsr-id=10.0.80.1 transport-address=10.0.80.1
+/mpls ldp interface
+add interface=ether1 transport-address=10.0.80.1
+/routing bgp instance vrf
+add disabled=yes redistribute-connected=yes routing-mark=ike2-service
+add disabled=yes redistribute-connected=yes routing-mark=ike2-ipsec-vrf
+/routing bgp peer
+add address-families=ip,vpnv4 name=peer1 remote-address=10.0.80.2 remote-as=\
+    65530 ttl=default update-source=10.0.80.1
+/routing ospf interface
+add interface=ether1 network-type=broadcast
+add network-type=broadcast passive=yes
+/routing ospf network
+add area=backbone network=10.0.80.0/24
+add area=backbone network=10.0.88.0/24
+add area=backbone network=10.0.255.1/32
+/system clock
+set time-zone-autodetect=no
+/system identity
+set name=mk-1
+/system logging
+add topics=ipsec
+/tool sniffer
+set file-name=test.pcap filter-interface=ether1 streaming-server=10.0.71.77
