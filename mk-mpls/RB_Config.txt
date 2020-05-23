@@ -1,0 +1,54 @@
+/system identity set name=Arandzin
+/user set [ find where name =admin ] password=to2korpus
+
+/interface bridge add name=BR-VRF-VoIP-phones
+/interface bridge add name=MGNMT
+/interface bridge add name=lo0
+
+/interface bridge port add bridge=BR-VRF-VoIP-phones interface=ether8
+/interface bridge port add bridge=BR-VRF-VoIP-phones interface=ether9
+/interface bridge port add bridge=BR-VRF-VoIP-phones interface=ether10
+/ip route vrf add export-route-targets=50:50 import-route-targets=50:50 interfaces=BR-VRF-VoIP-phones route-distinguisher=50:50 routing-mark=VoIP
+
+
+# Add ip addresses
+/ip address add address=10.0.158.1/24 interface=MGNMT
+/ip address add address=10.2.91.1/24 interface=BR-VRF-VoIP-phones
+/ip address add address=10.10.11.134/30 interface=ether1
+/ip address add address=10.255.254.158/32 interface=lo0
+
+# DHCP Server
+/ip pool add name=dhcp-Arandzin ranges=10.2.91.10-10.2.91.254
+/ip dhcp-server add address-pool=dhcp-Arandzin disabled=no interface=BR-VRF-VoIP-phones name=voip_dhcp_srv_Arandzin
+/ip dhcp-server network add address= gateway=10.2.91.1
+
+/routing ospf interface add interface=ether1 network-type=broadcast priority=0
+/routing ospf interface add  interface=all network-type=broadcast passive=yes
+
+/routing ospf network add area=backbone network=10.0.158.0/24
+/routing ospf network add area=backbone network=10.10.11.132/30
+/routing ospf network add area=backbone network=10.255.254.158/32
+
+
+/mpls ldp set enabled=yes lsr-id=10.255.254.158 transport-address=10.255.254.158
+/mpls ldp interface add interface=ether1 transport-address=10.255.254.158
+/mpls interface set [ find default=yes ] interface=ether1 mpls-mtu=1548
+
+/routing bgp instance set default router-id=10.255.254.158
+/routing ospf instance set [ find default=yes ] mpls-te-area=backbone mpls-te-router-id=lo0 router-id=10.255.254.158
+/routing bgp instance vrf add redistribute-connected=yes redistribute-static=yes routing-mark=VoIP
+/routing bgp peer add address-families=ip,vpnv4 name="To 5 BK" remote-address=10.255.254.1 remote-as=65530 ttl=default update-source=lo0
+
+
+/interface bridge add name=BR-Video-Zorakoch protocol-mode=none
+/interface bridge port add bridge=BR-Video-Zorakoch interface=ether3
+/interface vpls add advertised-l2mtu=1528 disabled=no l2mtu=1528 name=VPLS-Video-Zorakoch remote-peer=10.255.254.1 vpls-id=453:158
+/interface bridge port add bridge=BR-Video-Zorakoch interface=VPLS-Video-Zorakoch
+
+/interface bridge add name=BR-KSBU protocol-mode=none
+/interface bridge port add bridge=BR-KSBU interface=ether7
+/interface vpls add advertised-l2mtu=1528 disabled=no l2mtu=1528 name=VPLS-KSBU remote-peer=10.255.254.1 vpls-id=455:158
+/interface bridge port add bridge=BR-KSBU interface=VPLS-KSBU
+
+# Set Interface MTU to 1548 to include vpls and q-q vlan headers as well as FCS, Connection will be lost
+/interface ethernet set [ find default-name=ether1 ] mtu=1548

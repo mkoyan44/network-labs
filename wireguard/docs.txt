@@ -1,0 +1,18 @@
+sudo yum install -y epel-release https://www.elrepo.org/elrepo-release-7.el7.elrepo.noarch.rpm
+sudo yum install -y yum-plugin-elrepo
+sudo yum update -y
+sudo yum install -y kmod-wireguard wireguard-tools
+
+
+umask 077
+wg genkey > private
+# get public key
+# wg pubkey < private
+wg set wg0 private-key ./private
+ip link set dev wg0 up
+wg set wg0 peer tabKCDtGDk3N8PHEQwBVAFHEtocSYOSkza+9kU+YZ0Y= allowed-ips 10.7.0.0/24 endpoint 10.100.130.172:34777
+
+mkdir /etc/wireguard && cd /etc/wireguard && touch /etc/wireguard/wg0.conf && chmod 600 /etc/wireguard/wg0.conf
+wg-quick save wg0
+wg-quick up wg0
+
