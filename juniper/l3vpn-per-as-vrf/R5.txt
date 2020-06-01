@@ -1,0 +1,56 @@
+hostname R5
+!
+vrf definition as_80
+ rd 80:80
+ !
+ address-family ipv4
+  route-target export 113:113
+  route-target export 112:112
+  route-target export 80:80
+  route-target import 113:113
+  route-target import 112:112
+  route-target import 80:80
+ exit-address-family
+!
+!
+no ip domain lookup
+!
+interface Loopback0
+ ip address 90.255.255.5 255.255.255.255
+ ip ospf 1 area 0
+!
+interface Ethernet0/0
+ ip address 90.0.45.5 255.255.255.0
+ ip ospf 1 area 0
+ mpls ip
+!
+interface Ethernet0/1
+ vrf forwarding as_80
+ ip address 80.0.56.5 255.255.255.0
+!
+router ospf 1
+ router-id 90.255.255.5
+!
+router bgp 90
+ bgp router-id 90.255.255.5
+ bgp log-neighbor-changes
+ neighbor 90.255.255.4 remote-as 90
+ neighbor 90.255.255.4 update-source Loopback0
+ !
+ address-family ipv4
+  neighbor 90.255.255.4 activate
+ exit-address-family
+ !
+ address-family vpnv4
+  neighbor 90.255.255.4 activate
+  neighbor 90.255.255.4 send-community both
+ exit-address-family
+ !
+ address-family ipv4 vrf as_80
+  neighbor 80.0.56.6 remote-as 80
+  neighbor 80.0.56.6 ebgp-multihop 2
+  neighbor 80.0.56.6 update-source Ethernet0/1
+  neighbor 80.0.56.6 activate
+ exit-address-family
+!
+mpls ldp router-id Loopback0 force

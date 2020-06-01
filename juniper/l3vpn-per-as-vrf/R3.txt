@@ -1,0 +1,85 @@
+hostname R3
+!
+vrf definition as_112
+ rd 112:112
+ !
+ address-family ipv4
+  route-target export 113:113
+  route-target export 112:112
+  route-target export 80:80
+  route-target import 113:113
+  route-target import 112:112
+  route-target import 80:80
+ exit-address-family
+!
+vrf definition as_113
+ rd 113:113
+ !
+ address-family ipv4
+  route-target export 113:113
+  route-target export 112:112
+  route-target export 80:80
+  route-target import 113:113
+  route-target import 112:112
+  route-target import 80:80
+ exit-address-family
+!
+!         
+no ip domain lookup
+!
+interface Loopback0
+ ip address 90.255.255.3 255.255.255.255
+ ip ospf 1 area 0
+!
+interface Ethernet0/0
+ vrf forwarding as_113
+ ip address 113.0.0.3 255.255.255.0
+!
+interface Ethernet0/1
+ vrf forwarding as_112
+ ip address 112.0.0.3 255.255.255.0
+!
+interface Ethernet0/2
+ ip address 90.0.34.3 255.255.255.0
+ ip ospf 1 area 0
+ mpls ip
+!
+router ospf 1
+ router-id 90.255.255.3
+!
+router bgp 90
+ bgp router-id 90.255.255.3
+ bgp log-neighbor-changes
+ neighbor 90.255.255.4 remote-as 90
+ neighbor 90.255.255.4 update-source Loopback0
+ !
+ address-family ipv4
+  neighbor 90.255.255.4 activate
+ exit-address-family
+ !
+ address-family vpnv4
+  neighbor 90.255.255.4 activate
+  neighbor 90.255.255.4 send-community both
+ exit-address-family
+ !
+ address-family ipv4 vrf as_112
+  bgp router-id 112.0.0.3
+  neighbor 112.0.0.2 remote-as 112
+  neighbor 112.0.0.2 ebgp-multihop 2
+  neighbor 112.0.0.2 update-source Ethernet0/1
+  neighbor 112.0.0.2 activate
+  neighbor 112.0.0.2 send-community both
+ exit-address-family
+ !
+ address-family ipv4 vrf as_113
+  bgp router-id 113.0.0.3
+  neighbor 113.0.0.1 remote-as 113
+  neighbor 113.0.0.1 ebgp-multihop 2
+  neighbor 113.0.0.1 update-source Ethernet0/0
+  neighbor 113.0.0.1 activate
+  neighbor 113.0.0.1 send-community both
+ exit-address-family
+!
+!
+mpls ldp router-id Loopback0 force
+

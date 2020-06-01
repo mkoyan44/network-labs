@@ -1,0 +1,15 @@
+hostname R6
+!
+interface Loopback10
+ ip address 80.0.1.1 255.255.255.0
+!
+interface Ethernet0/0
+ ip address 80.0.56.6 255.255.255.0
+!
+router bgp 80
+ bgp log-neighbor-changes
+ network 80.0.1.0 mask 255.255.255.0
+ neighbor 80.0.56.5 remote-as 90
+ neighbor 80.0.56.5 ebgp-multihop 2
+ neighbor 80.0.56.5 update-source Ethernet0/0
+!

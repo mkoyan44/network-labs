@@ -1,0 +1,18 @@
+hostname R1
+no ip domain lookup
+!
+interface Loopback10
+ ip address 113.0.1.1 255.255.255.0
+!
+interface Ethernet0/0
+ ip address 113.0.0.1 255.255.255.0
+!
+!
+router bgp 113
+ bgp router-id 113.0.0.1
+ bgp log-neighbor-changes
+ network 113.0.1.0 mask 255.255.255.0
+ neighbor 113.0.0.3 remote-as 90
+ neighbor 113.0.0.3 ebgp-multihop 2
+ neighbor 113.0.0.3 update-source Ethernet0/0
+!
