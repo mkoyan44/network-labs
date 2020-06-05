@@ -1,0 +1,37 @@
+set system host-name R4
+set system root-authentication encrypted-password "$1$HPtZdMM9$0slh4qTNI.8vRz89Uh7571"
+set interfaces ge-0/0/2 unit 0 family inet address 104.0.0.1/24
+set interfaces ge-0/0/3 unit 0 family inet address 10.0.24.4/24
+set interfaces ge-0/0/3 unit 0 family mpls
+set interfaces lo0 unit 0 family inet address 10.0.255.4/32
+set routing-options router-id 10.0.255.4
+set protocols bgp group rr_peer local-address 10.0.255.4
+set protocols bgp group rr_peer family inet flow
+set protocols bgp group rr_peer family inet-vpn unicast
+set protocols bgp group rr_peer peer-as 1
+set protocols bgp group rr_peer local-as 1
+set protocols bgp group rr_peer neighbor 10.0.255.2
+set protocols ospf area 0.0.0.0 interface lo0.0
+set protocols ospf area 0.0.0.0 interface ge-0/0/3.0
+set protocols ldp transport-address router-id
+set protocols ldp interface ge-0/0/3.0
+set policy-options policy-statement RT_IMPORT term 10 from community R1_RT
+set policy-options policy-statement RT_IMPORT term 10 from community R2_RT
+set policy-options policy-statement RT_IMPORT term 10 from community R3_RT
+set policy-options policy-statement RT_IMPORT term 10 then accept
+set policy-options community R1_RT members target:10:10
+set policy-options community R2_RT members target:20:20
+set policy-options community R3_RT members target:30:30
+set routing-instances as_40 instance-type vrf
+set routing-instances as_40 interface ge-0/0/2.0
+set routing-instances as_40 route-distinguisher 40:40
+set routing-instances as_40 vrf-import RT_IMPORT
+set routing-instances as_40 vrf-target import target:40:40
+set routing-instances as_40 vrf-target export target:40:40
+set routing-instances as_40 vrf-table-label
+set routing-instances as_40 protocols bgp group as_40_peers multihop ttl 2
+set routing-instances as_40 protocols bgp group as_40_peers local-address 104.0.0.1
+set routing-instances as_40 protocols bgp group as_40_peers family inet unicast
+set routing-instances as_40 protocols bgp group as_40_peers peer-as 40
+set routing-instances as_40 protocols bgp group as_40_peers local-as 1
+set routing-instances as_40 protocols bgp group as_40_peers neighbor 104.0.0.44

@@ -1,0 +1,128 @@
+hostname R3
+username admin
+ group root-lr
+ group cisco-support
+ secret 5 $1$pj9r$cyXbkYfwj5wV4Ow/Sql.V1
+!
+vrf as_30
+ address-family ipv4 unicast
+  import route-target
+   20:20
+  !
+  export route-target
+   20:20
+  !
+ !
+ address-family ipv4 flowspec
+  import route-target
+   20:20
+  !
+  export route-target
+   20:20  
+  !
+ !
+!
+call-home
+ service active
+ contact smart-licensing
+ profile CiscoTAC-1
+  active
+  destination transport-method http
+ !
+!
+interface Loopback0
+ ipv4 address 10.0.255.3 255.255.255.255
+!
+interface MgmtEth0/RP0/CPU0/0
+ shutdown
+!
+interface GigabitEthernet0/0/0/0
+ ipv4 address 10.0.23.3 255.255.255.0
+!
+interface GigabitEthernet0/0/0/1
+ vrf as_30
+ ipv4 address 103.0.0.1 255.255.255.0
+!
+interface GigabitEthernet0/0/0/2
+ shutdown
+!
+interface GigabitEthernet0/0/0/3
+ shutdown
+!
+interface preconfigure MgmtEth0/0/CPU0/0
+ shutdown
+!
+route-policy DONE
+  done
+end-policy
+!
+route-policy PASS
+  pass
+end-policy
+!
+router ospf main
+ router-id 10.0.255.3
+ area 0.0.0.0
+  interface Loopback0
+  !       
+  interface GigabitEthernet0/0/0/0
+  !
+ !
+!
+router bgp 1
+ bgp router-id 10.0.255.3
+ address-family ipv4 unicast
+ !
+ address-family vpnv4 unicast
+ !
+ address-family ipv4 flowspec
+ !
+ address-family vpnv4 flowspec
+ !
+ neighbor-group RR
+  remote-as 1
+  update-source Loopback0
+  address-family ipv4 unicast
+  !
+  address-family vpnv4 unicast
+  !
+  address-family ipv4 flowspec
+  !       
+  address-family vpnv4 flowspec
+  !
+ !
+ neighbor 10.0.255.2
+  use neighbor-group RR
+ !
+ vrf as_30
+  rd 30:30
+  address-family ipv4 unicast
+   redistribute connected
+  !
+  address-family ipv4 flowspec
+  !
+  neighbor 103.0.0.33
+   remote-as 30
+   ebgp-multihop 2
+   update-source GigabitEthernet0/0/0/1
+   address-family ipv4 unicast
+    route-policy PASS in
+    route-policy PASS out
+   !
+  !
+ !        
+!
+mpls ldp
+ router-id 10.0.255.3
+ interface GigabitEthernet0/0/0/0
+ !
+!
+flowspec
+ local-install interface-all
+ vrf as_30
+  address-family ipv4
+   local-install interface-all
+  !
+ !
+!
+end

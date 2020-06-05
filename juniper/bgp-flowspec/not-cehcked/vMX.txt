@@ -1,0 +1,23 @@
+set version 14.1R1.10
+set system host-name vMX-6
+set system root-authentication encrypted-password "$1$lS4jI4gj$h5zwjkoh0r0Gd.eSf7v3k/"
+set interfaces ge-0/0/2 unit 0 family inet address 40.0.0.1/24
+set interfaces ge-0/0/3 unit 0 family inet address 50.0.68.6/24
+set interfaces ge-0/0/3 unit 0 family mpls
+set interfaces lo0 unit 0 family inet address 50.255.255.6/32
+set routing-options router-id 50.255.255.6
+set routing-options autonomous-system 90
+set protocols bgp group ibgp_group local-address 50.255.255.6
+set protocols bgp group ibgp_group family inet unicast
+set protocols bgp group ibgp_group family inet flow no-validate NO-VAIDATION
+set protocols bgp group ibgp_group export bgp_adv_ipv4
+set protocols bgp group ibgp_group peer-as 90
+set protocols bgp group ibgp_group local-as 90
+set protocols bgp group ibgp_group neighbor 50.255.255.8
+set protocols ospf area 0.0.0.0 interface ge-0/0/3.0
+set protocols ospf area 0.0.0.0 interface lo0.0
+set protocols ldp transport-address router-id
+set protocols ldp interface ge-0/0/3.0 transport-address router-id
+set policy-options policy-statement NO-VAIDATION term 1 then accept
+set policy-options policy-statement bgp_adv_ipv4 term 2 from route-filter 40.0.0.0/24 exact
+set policy-options policy-statement bgp_adv_ipv4 term 2 then accept

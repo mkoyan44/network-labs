@@ -1,0 +1,68 @@
+hostname CSR-1000V-9
+!
+vrf definition as_200
+ rd 200:200
+ !
+ address-family ipv4
+  route-target export 100:100
+  route-target export 200:200
+  route-target export 40:40
+  route-target import 100:100
+  route-target import 200:200
+  route-target import 40:40
+ exit-address-family
+!
+flowspec
+ address-family ipv4
+  local-install interface-all
+!
+interface Loopback0
+ ip address 50.255.255.9 255.255.255.0
+ ip ospf 1 area 0
+!
+interface GigabitEthernet1
+ vrf forwarding as_200
+ ip address 200.0.0.1 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet2
+ ip address 50.0.89.9 255.255.255.0
+ ip ospf 1 area 0
+ negotiation auto
+ mpls ip
+ no mop enabled
+ no mop sysid
+!        
+router ospf 1
+ router-id 50.255.255.9
+!
+router bgp 90
+ bgp router-id 50.255.255.9
+ bgp log-neighbor-changes
+ neighbor 50.255.255.8 remote-as 90
+ neighbor 50.255.255.8 update-source Loopback0
+ !        
+ address-family vpnv4
+  neighbor 50.255.255.8 activate
+  neighbor 50.255.255.8 send-community both
+ exit-address-family
+ !
+ address-family ipv4 flowspec
+  neighbor 50.255.255.8 activate
+  neighbor 50.255.255.8 send-community both
+  neighbor 50.255.255.8 validation off
+ exit-address-family
+ !
+ address-family ipv4 vrf as_200
+  redistribute connected
+  neighbor 200.0.0.5 remote-as 200
+  neighbor 200.0.0.5 ebgp-multihop 2
+  neighbor 200.0.0.5 update-source GigabitEthernet1
+  neighbor 200.0.0.5 activate
+ exit-address-family
+!
+mpls ldp router-id Loopback0 force
+!
+!
