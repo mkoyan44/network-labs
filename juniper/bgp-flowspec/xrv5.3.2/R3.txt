@@ -107,3 +107,9 @@ mpls ldp
 flowspec
 !
 end
+
+flowspec
+ local-install interface-all
+ vrf as_10
+  address-family ipv4
+   local-install interface-all

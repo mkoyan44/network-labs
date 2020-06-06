@@ -1,0 +1,54 @@
+apt-get install bridge-utils
+
+ip link set dev eth0 up
+ip link set dev eth1 up
+
+# add vrf
+ip link add vrf_10 type vrf table 10
+ip link set dev vrf_10 up
+# creade rules
+ip rule add oif vrf_10 table 10
+ip rule add iif vrf_10 table 10
+# assign interface to vrf
+ip link set eth0 master vrf_10
+# add ip
+ip address add 10.0.12.1/24 dev eth0
+# add default route
+ip route add default via 10.0.12.2 table 10
+
+# add other loopback interface
+ip link add name lo0 type bridge
+ip link set dev lo0 up
+ip link set lo0 master vrf_10
+# assign ip
+ip address add 10.0.10.1/24 dev lo0
+
+
+
+# add vrf
+ip link add vrf_20 type vrf table 20
+ip link set dev vrf_20 up
+# add rule
+ip rule add oif vrf_20 table 20
+ip rule add iif vrf_20 table 20
+# assign interface to vrf
+ip link set eth1 master vrf_20
+# assign ip
+ip address add 10.0.13.1/24 dev eth1
+# add default route
+ip route add default via 10.0.13.3 table 20
+
+# add lo
+ip link add name lo1 type bridge
+ip link set dev lo1 up
+ip link set lo1 master vrf_20
+# add ip
+ip address add 10.0.20.1/24 dev lo1
+
+
+cat /etc/sysctl.d/am.conf 
+net.ipv4.tcp_l3mdev_accept=1
+net.ipv4.udp_l3mdev_accept=1
+
+iptables -A INPUT -i vrf_10 -p tcp -m tcp --dport 22 -j ACCEPT
+iptables -A INPUT -p tcp -m tcp --dport 22 -j REJECT --reject-with icmp-host-unreachable
